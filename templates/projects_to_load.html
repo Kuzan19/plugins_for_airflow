@@ -1,0 +1,459 @@
+{% extends base_template %} {% block head_css %} {{ super() }}
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="{{ url_for('project_data_saving.static', filename='css/ag-grid.css') }}"
+/>
+
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="{{ url_for('project_data_saving.static', filename='css/ag-theme-alpine.css') }}"
+/>
+
+<script
+  type="text/javascript"
+  src="{{ url_for('project_data_saving.static', filename='js/ag-grid-community.min.noStyle.js') }}"
+></script>
+
+<style>
+  /* Override AG Grid border color */
+  .ag-theme-alpine {
+    --ag-border-color: #f0f0f0;
+  }
+
+  .mssql-plugin-form-group p {
+    margin: 0;
+  }
+
+  .container-form {
+    margin-top: 20px;
+    padding: 0 15px;
+    max-width: 100%;
+    box-sizing: border-box;
+    height: 100%;
+  }
+
+  .mssql-plugin-container {
+    padding: 20px;
+    width: 100%;
+    margin: auto;
+  }
+
+  .error-message {
+    color: red;
+    margin-bottom: 20px;
+    font-size: 16px;
+  }
+
+  .ag-grid-container {
+    width: 100%;
+    margin-top: 20px;
+  }
+
+  .button-submit {
+    display: flex;
+    margin-top: 20px;
+    text-align: right;
+    gap: 10px;
+  }
+
+  /* Styles for notification */
+  .notification {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    width: 300px;
+    padding: 15px;
+    border-radius: 5px;
+    color: #fff;
+    font-size: 16px;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    visibility: hidden;
+  }
+
+  .notification.show {
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+  }
+
+  .notification.hide {
+    opacity: 0;
+    transform: translateY(-20px);
+    visibility: hidden;
+  }
+
+  .notification.success {
+    background-color: #27ae60;
+  }
+
+  .notification.error {
+    background-color: #e74c3c;
+  }
+
+  .notification.info {
+    background-color: #c9c9c9;
+  }
+</style>
+{% endblock %} {% block content %}
+<div class="container-form">
+  <div id="notification" class="notification"></div>
+
+  <div class="panel panel-primary">
+    <div class="panel-heading">
+      <h4></h4>
+    </div>
+    <div class="mssql-plugin-container">
+      <div class="mssql-plugin-form-group">
+        <!-- <p><strong>Project:</strong> {{ project_database }}</p>
+        <p><strong>Connection:</strong> {{ connection }}</p>
+        <p><strong>source_database_type:</strong> {{ source_database_type }}</p> -->
+      </div>
+      <div class="ag-grid-container">
+        <div
+          id="myGrid"
+          style="height: 50vh; width: 100%"
+          class="ag-theme-alpine"
+        >
+        </div>
+        <div id="buttonContainer" class="button-submit">
+          <button
+            id="button-send-datatoload"
+            type="submit"
+            class="btn btn-primary btn-no-margin"
+            name="action"
+            value="save"
+          >
+            Save
+          </button>
+          <a
+            id="button_update_tables_list"
+            class="btn btn-secondary btn-no-margin"
+            >Update tables list</a
+          >
+          <a
+            href="javascript:history.go(-1);"
+            class="btn btn-sm btn-default btn-no-margin"
+            data-toggle="tooltip"
+            rel="tooltip"
+            title=""
+            data-original-title="Back"
+          >
+            <span class="sr-only">Back</span>
+            <i class="fa fa-arrow-left"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const connection = "{{ connection }}";
+  const project_database = "{{ project_database }}";
+  const source_database_type = "{{ source_database_type }}";
+  console.log("connection: ", connection);
+  console.log("project_database: ", project_database);
+  console.log("source_database_type: ", source_database_type);
+  const dataToSend = [];
+  let gridOptions = null;
+
+  function capitalizeFirstLetter(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+  }
+
+  // const capitalized_project_database = "{{ project_database }}";
+  document.querySelector(".panel-heading h4").textContent =
+    capitalizeFirstLetter(project_database);
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const gridDiv = document.querySelector("#myGrid");
+    const errorMessageDiv = createErrorMessageDiv(gridDiv);
+
+    initializeEventListeners();
+
+    // Set up a listener for the header checkbox click
+    const headerCheckboxes = document.querySelectorAll(
+      '.ag-header-select-all input[type="checkbox"]'
+    );
+    headerCheckboxes.forEach((checkbox) => {
+      checkbox.addEventListener("click", () => {
+        handleHeaderCheckboxClick();
+      });
+    });
+
+    // Initial data fetch on page load
+    fetchData(
+      `/projectsview/fetch_data?project_database=${encodeURIComponent(project_database)}&connection=${encodeURIComponent(connection)}&source_database_type=${encodeURIComponent(source_database_type)}`
+    )
+      .then((data) => {initializeGrid(data)
+        console.log(data)
+      })
+      .catch(handleError);
+
+    function createErrorMessageDiv(referenceElement) {
+      const div = document.createElement("div");
+      referenceElement.parentNode.insertBefore(div, referenceElement);
+      return div;
+    }
+
+    async function fetchData(url) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(
+            `Network response was not ok: ${response.statusText}`
+          );
+        }
+        return await response.json();
+      } catch (error) {
+        handleError(error, "Error fetching data:");
+        throw error;
+      }
+    }
+
+    function initializeGrid(data) {
+      if (data.status === "error") {
+        displayError(data.message || "Failed to fetch data");
+        return;
+      }
+
+      if (!Array.isArray(data.columns) || !Array.isArray(data.results)) {
+        displayError("Invalid data format received.");
+        console.error("Invalid data format:", data);
+        return;
+      }
+
+      const columnDefs = [
+        {
+          headerCheckboxSelection: true,
+          headerName: "Load",
+          field: "load",
+          width: 180,
+          suppressHeaderMenuButton: true,
+          resizable: false,
+          editable: true,
+          filter: false,
+          cellRenderer: "agCheckboxCellRenderer",
+          valueGetter: params => params.data.load === 1, 
+          valueSetter: params => {
+            params.data.load = params.newValue ? 1 : 0;  
+            return true;
+          }
+        },
+        ...data.columns
+          .filter((col) => col !== "project_database" && col !== "load")
+          .map((col) => ({
+            headerName:
+              col.charAt(0).toUpperCase() + col.slice(1).toLowerCase(),
+            field: col,
+            flex: 1,
+          })),
+      ];
+
+      const rowData = data.results;
+
+      if (gridOptions) {
+        gridOptions.api.destroy();
+        gridDiv.innerHTML = "";
+      }
+
+      gridOptions = {
+        columnDefs,
+        rowData,
+        pagination: true,
+        paginationPageSize: 20,
+        defaultColDef: {
+          sortable: true,
+          filter: true,
+          resizable: true,
+        },
+        onGridReady: function (params) {
+          // Save grid API reference
+          gridApi = params.api;
+
+          // Set up a listener for header click events
+          const headerCheckboxes = document.querySelectorAll(
+            '.ag-header-select-all input[type="checkbox"]'
+          );
+          headerCheckboxes.forEach((checkbox) => {
+            checkbox.addEventListener("click", () => {
+              console.log("Header checkbox clicked");
+              handleHeaderCheckboxClick();
+            });
+          });
+        },
+        onCellValueChanged: handleCellValueChanged,
+        rowSelection: "multiple",
+      };
+
+      new agGrid.Grid(gridDiv, gridOptions);
+    }
+
+    function handleHeaderCheckboxClick() {
+      if (!gridApi) return;
+
+      // Delay to ensure the checkbox state is updated by the browser
+      setTimeout(() => {
+        // Get the current state of the header checkbox after it updates
+        const isChecked = document.querySelector(
+          '.ag-header-select-all input[type="checkbox"]'
+        ).checked;
+
+        // Toggle all load column values based on the header checkbox state
+        toggleLoadColumnValues(isChecked);
+      }, 0); // Timeout with 0ms ensures we check the state after the event processing
+    }
+
+    // Function to toggle all values in the 'load' column based on the header checkbox state
+    function toggleLoadColumnValues(checked) {
+      // Iterate through each row and set the 'load' value based on the header checkbox state
+      gridApi.forEachNodeAfterFilter((node) => {
+        node.setDataValue("load", checked);
+      });
+    }
+
+    function handleCellValueChanged(event) {
+      const { field } = event.colDef;
+      if (field !== "load") return;
+
+      const { oldValue, newValue, data } = event;
+      if (oldValue === newValue) return;
+
+      const existingEntryIndex = dataToSend.findIndex(
+        (item) => item.table_alias === data.table_alias
+      );
+
+      if (existingEntryIndex !== -1) {
+        updateExistingEntry(existingEntryIndex, field, oldValue, newValue);
+      } else {
+        createNewEntry(data.table_alias, field, oldValue, newValue);
+      }
+    }
+
+    function updateExistingEntry(index, field, oldValue, newValue) {
+      const existingChanges = dataToSend[index].changes || [];
+      const changeIndex = existingChanges.findIndex(
+        (change) => change.field === field
+      );
+
+      if (changeIndex !== -1) {
+        if (existingChanges[changeIndex].oldValue === newValue) {
+          existingChanges.splice(changeIndex, 1);
+          if (existingChanges.length === 0) dataToSend.splice(index, 1);
+        } else {
+          existingChanges[changeIndex].newValue = newValue;
+        }
+      } else {
+        existingChanges.push({ field, oldValue, newValue });
+        dataToSend[index].changes = existingChanges;
+      }
+    }
+
+    function createNewEntry(table_alias, field, oldValue, newValue) {
+      dataToSend.push({
+        table_alias,
+        changes: [{ field, oldValue, newValue }],
+      });
+    }
+
+    async function updateAndFetchData() {
+      try {
+        const response = await fetch();
+
+        const data = await response.json();
+
+        if (data.status === "error") {
+          displayError(data.message || "Failed to update data");
+          return;
+        }
+
+        const updatedData = await fetchData(
+          `/projectsview/fetch_data?project_database=${encodeURIComponent(project_database)}`
+        );
+        initializeGrid(updatedData);
+      } catch (error) {
+        handleError(error, "Error updating data:");
+      }
+    }
+
+    function initializeEventListeners() {
+      document
+        .getElementById("button-send-datatoload")
+        .addEventListener("click", handleDataLoad);
+      document
+        .getElementById("button_update_tables_list")
+        .addEventListener("click", (e) => {
+          e.preventDefault();
+          location.reload();;
+        });
+    }
+
+    async function handleDataLoad() {
+      try {
+        const payload = {
+          project_database: project_database,
+          data: dataToSend, // Send the array as part of an object
+        };
+
+        const response = await fetch(`/projectsview/update_data_is_load?source_database_type=${encodeURIComponent(source_database_type)}&connection=${encodeURIComponent(connection)}&project_database=${encodeURIComponent(project_database)}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const result = await response.json();
+        const notification = document.getElementById("notification");
+
+        if (result.status === "success") {
+          showNotification("Data updated successfully!", "success");
+          dataToSend.length = 0; // Clear the dataToSend array after saving
+        } else {
+          showNotification(
+            "No changes were detected. There is nothing to save.",
+            "info"
+          );
+        }
+      } catch (error) {
+        showNotification("Error updating data: " + error.message, "error");
+      }
+    }
+
+    function showNotification(message, type) {
+      const notification = document.getElementById("notification");
+      notification.textContent = message;
+      notification.className = `notification ${type} show`;
+
+      // Hide the notification after 5 seconds
+      setTimeout(() => {
+        notification.classList.remove("show");
+      }, 5000); // Duration in milliseconds
+    }
+
+    function displayError(message) {
+      errorMessageDiv.textContent = message;
+    }
+
+    function handleError(error, prefix = "Error:") {
+      console.error(prefix, error);
+      errorMessageDiv.textContent = `${prefix} ${error.message}`;
+    }
+  });
+
+  window.addEventListener("beforeunload", function (event) {
+    if (dataToSend.length > 0) {
+      // Prevent default behavior (prompt user with confirmation dialog)
+      event.preventDefault();
+      // Show a custom message in some browsers
+      event.returnValue =
+        "You have unsaved changes, do you really want to leave?";
+    }
+  });
+</script>
+
+{% endblock %}
