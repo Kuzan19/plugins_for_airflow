@@ -2,18 +2,18 @@
 <link
   rel="stylesheet"
   type="text/css"
-  href="{{ url_for('project_data_saving.static', filename='css/ag-grid.css') }}"
+  href="{{ url_for('ct_projects_administration.static', filename='css/ag-grid.css') }}"
 />
 
 <link
   rel="stylesheet"
   type="text/css"
-  href="{{ url_for('project_data_saving.static', filename='css/ag-theme-alpine.css') }}"
+  href="{{ url_for('ct_projects_administration.static', filename='css/ag-theme-alpine.css') }}"
 />
 
 <script
   type="text/javascript"
-  src="{{ url_for('project_data_saving.static', filename='js/ag-grid-community.min.noStyle.js') }}"
+  src="{{ url_for('ct_projects_administration.static', filename='js/ag-grid-community.min.noStyle.js') }}"
 ></script>
 
 <style>
@@ -167,7 +167,7 @@
 
   // const capitalized_project_database = "{{ project_database }}";
   document.querySelector(".panel-heading h4").textContent =
-    capitalizeFirstLetter(project_database);
+    capitalizeFirstLetter("Tables list for " + project_database);
 
   document.addEventListener("DOMContentLoaded", () => {
     const gridDiv = document.querySelector("#myGrid");
@@ -187,7 +187,7 @@
 
     // Initial data fetch on page load
     fetchData(
-      `/projectsview/fetch_data?project_database=${encodeURIComponent(project_database)}&connection=${encodeURIComponent(connection)}&source_database_type=${encodeURIComponent(source_database_type)}`
+      `/projectsview/api/fetch_data?project_database=${encodeURIComponent(project_database)}&connection=${encodeURIComponent(connection)}&source_database_type=${encodeURIComponent(source_database_type)}`
     )
       .then((data) => {initializeGrid(data)
         console.log(data)
@@ -245,13 +245,14 @@
           }
         },
         ...data.columns
-          .filter((col) => col !== "project_database" && col !== "load")
-          .map((col) => ({
-            headerName:
-              col.charAt(0).toUpperCase() + col.slice(1).toLowerCase(),
-            field: col,
-            flex: 1,
-          })),
+        .filter((col) => col !== "project_database" && col !== "load")
+        .map((col) => ({
+          headerName: col === "table_alias" 
+            ? "Table name" 
+            : col.charAt(0).toUpperCase() + col.slice(1).toLowerCase(),
+          field: col,
+          flex: 1,
+        })),
       ];
 
       const rowData = data.results;
@@ -266,16 +267,16 @@
         rowData,
         pagination: true,
         paginationPageSize: 20,
+        paginationPageSizeSelector: [20, 50, 100, 500],
         defaultColDef: {
           sortable: true,
           filter: true,
           resizable: true,
         },
         onGridReady: function (params) {
-          // Save grid API reference
+          
           gridApi = params.api;
 
-          // Set up a listener for header click events
           const headerCheckboxes = document.querySelectorAll(
             '.ag-header-select-all input[type="checkbox"]'
           );
@@ -372,7 +373,7 @@
         }
 
         const updatedData = await fetchData(
-          `/projectsview/fetch_data?project_database=${encodeURIComponent(project_database)}`
+          `/projectsview/api/fetch_data?project_database=${encodeURIComponent(project_database)}`
         );
         initializeGrid(updatedData);
       } catch (error) {
@@ -399,7 +400,7 @@
           data: dataToSend, // Send the array as part of an object
         };
 
-        const response = await fetch(`/projectsview/update_data_is_load?source_database_type=${encodeURIComponent(source_database_type)}&connection=${encodeURIComponent(connection)}&project_database=${encodeURIComponent(project_database)}`, {
+        const response = await fetch(`/projectsview/api/update_data_is_load?source_database_type=${encodeURIComponent(source_database_type)}&connection=${encodeURIComponent(connection)}&project_database=${encodeURIComponent(project_database)}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

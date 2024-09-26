@@ -276,7 +276,7 @@
                   
                   function fillinConnections() {
                       const sourceConnID = '{{ form.source_connection_id.data }}';
-                      const dbSelect = document.getElementById("conn_type6");
+                      const dbSelect = document.getElementById("conn_type source_database_type");
                       const connectionSourceSelect = document.getElementById("conn_type");
                     
                       const selectedSourceConn = dbSelect.value;
@@ -310,8 +310,8 @@
 
                     function fillinTargetConnections() {
                       const targetConnID = '{{ form.target_connection_id.data }}';
-                      const selectTargetDatabaseType = document.getElementById("conn_type7");
-                      const connectionTargetSelect = document.getElementById("conn_type8");
+                      const selectTargetDatabaseType = document.getElementById("conn_type target_database_type");
+                      const connectionTargetSelect = document.getElementById("conn_type target_connection_id");
                     
                       const selectedTargetConn = selectTargetDatabaseType.value;
                     
@@ -344,8 +344,8 @@
                     }
 
                     function updateTargetConnections() {
-                      const selectTargetDatabaseType = document.getElementById("conn_type7");
-                      const selectTargetConnectionType = document.getElementById("conn_type8");
+                      const selectTargetDatabaseType = document.getElementById("conn_type target_database_type");
+                      const selectTargetConnectionType = document.getElementById("conn_type target_connection_id");
 
                       console.log(selectTargetDatabaseType.value)
 
@@ -376,7 +376,7 @@
                     }
                     
                     function waitForTargetDatabaseType () {
-                      if (document.getElementById("conn_type7").value) {
+                      if (document.getElementById("conn_type target_database_type").value) {
                         fillinTargetConnections()
                       }
                       else {
@@ -388,7 +388,7 @@
                       fillinConnections()
                       waitForTargetDatabaseType()
 
-                      document.getElementById("conn_type7").addEventListener("change", updateTargetConnections);
+                      document.getElementById("conn_type target_database_type").addEventListener("change", updateTargetConnections);
                     });
                 </script>
 
@@ -411,25 +411,17 @@
                 </div>
 
                 <div class="form-group row">
-                    <label class="col-sm-2 col-form-label"
-                    >{{ form.biview_database.label }}<strong class="text-danger"
-                    > *</strong
-                    ></label
-                    >
-                    <div class="col-sm-10">{{ form.biview_database }}</div>
+                  <label class="col-sm-2 col-form-label"
+                  >{{ form.is_source_1c.label }}<strong class="text-danger"
+                  > *</strong
+                  ></label>
+                  <div class="col-sm-10">{{ form.is_source_1c }}</div>
                 </div>
 
                 <div class="form-group row">
-                    <label class="col-sm-2 col-form-label"
-                    >{{ form.biview_project_type.label }}
-                        <br><strong class="text-danger"> *</strong>
-                    </label>
-                    <div class="col-sm-10">
-                        <div class="form-check">{{ form.biview_project_type }}</div>
-                    </div>
+                  <label class="col-sm-2 col-form-label">{{ form.biview_database.label }}</label>
+                  <div class="col-sm-10">{{ form.biview_database }}</div>
                 </div>
-
-                
                 
                 <script>
                   
@@ -441,9 +433,9 @@
                   const OneCSelect = '{{ form.source_database.data }}';
 
                   const connSourceSelect = document.getElementById("conn_type");
-                  const selectDatabaseBIView = document.getElementById("conn_type2");
-                  const selectProjectDatabase = document.getElementById("conn_type3");
-                  const selectSourceDatabase = document.getElementById("conn_type1");
+                  const selectDatabaseBIView = document.getElementById("conn_type biview_database");
+                  const selectProjectDatabase = document.getElementById("conn_type project_database");
+                  const selectSourceDatabase = document.getElementById("conn_type source_database");
 
                   const selectedSourceConn = connSourceSelect.value;
 
@@ -501,8 +493,8 @@
                   
                   const TargetSchemaSelect = '{{ form.target_schema.data }}';
                   
-                  const connTargetSelect = document.getElementById("conn_type8");
-                  const dbTargetSelect = document.getElementById("conn_type4");
+                  const connTargetSelect = document.getElementById("conn_type target_connection_id");
+                  const dbTargetSelect = document.getElementById("conn_type target_schema");
                   
                   
                   const selectedtargetConn = connTargetSelect.value;
@@ -531,9 +523,9 @@
 
                   function updateDatabases() {
                         const connSelect = document.getElementById("conn_type");
-                        const selectSourceDatabase = document.getElementById("conn_type1");
-                        const selectDatabaseBIView = document.getElementById("conn_type2");
-                        const selectProjectDatabase = document.getElementById("conn_type3");
+                        const selectSourceDatabase = document.getElementById("conn_type source_database");
+                        const selectDatabaseBIView = document.getElementById("conn_type biview_database");
+                        const selectProjectDatabase = document.getElementById("conn_type project_database");
                       
                         const selectedtargetConn = connSelect.value;
                         
@@ -585,8 +577,8 @@
                       }
                   
                       function updateTargetDatabases() {
-                        const selectTargetConnection = document.getElementById("conn_type8");
-                        const selectTargetSchema = document.getElementById("conn_type4");
+                        const selectTargetConnection = document.getElementById("conn_type target_connection_id");
+                        const selectTargetSchema = document.getElementById("conn_type target_schema");
                       
                         const selectedConn = selectTargetConnection.value;
                         
@@ -629,14 +621,14 @@
                 }
                 
                 function waitForFormTargetDatabase() {
-                  const conn_type8 = document.getElementById('conn_type8');
+                  const targetconn_type = document.getElementById('conn_type target_connection_id');
 
-                  if (conn_type8 && conn_type8.value) {
+                  if (targetconn_type && targetconn_type.value) {
                     console.log("Initial form database loading...");
                   
                     fillinTargetDatabases();
 
-                    document.getElementById("conn_type8").addEventListener("change", updateTargetDatabases);
+                    document.getElementById("conn_type target_connection_id").addEventListener("change", updateTargetDatabases);
 
                   } else {
                     setTimeout(waitForFormTargetDatabase, 100);
@@ -649,6 +641,26 @@
 
                 </script>
 
+                <script>
+
+                  function disableFromIsSource1C() {
+                    const isSource1C = document.getElementById("is_source_1c");
+                    const databaseBIView = document.getElementById("conn_type biview_database");
+                  
+                    if (!isSource1C.checked) {
+                      databaseBIView.value = '';
+                      databaseBIView.disabled = true;
+                    } else {
+                      databaseBIView.disabled = false;
+                    }
+                  }
+                
+                  document.getElementById("is_source_1c").addEventListener("change", disableFromIsSource1C);
+                
+                  disableFromIsSource1C();
+                
+                </script>
+
                 <div class="form-group row">
                     <label class="col-sm-2 col-form-label"
                     >{{ form.transfer_source_data.label }}</label
@@ -659,10 +671,10 @@
                 <script>
                   function TransferMonitoring() {
                       const transferSourceData = document.getElementById("transfer_source_data");
-                      const targetDatabaseType = document.getElementById("conn_type7");
-                      const targetConnID = document.getElementById("conn_type8");
-                      const targetSchema = document.getElementById("conn_type4");
-                      const targetType = document.getElementById("conn_type5");
+                      const targetDatabaseType = document.getElementById("conn_type target_database_type");
+                      const targetConnID = document.getElementById("conn_type target_connection_id");
+                      const targetSchema = document.getElementById("conn_type target_schema");
+                      const targetType = document.getElementById("conn_type target_type");
               
                       if (!transferSourceData.checked) {
                           targetDatabaseType.value = ''; 
@@ -852,7 +864,7 @@
       }
 
       const projectDatabase = document.querySelector(
-        '[name="conn_type3"]'
+        '[name="conn_type project_database"]'
       ).value;
 
       const connection = document.querySelector(

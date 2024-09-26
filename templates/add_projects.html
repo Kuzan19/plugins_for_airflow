@@ -295,18 +295,23 @@
                 </div>
 
                 <div class="form-group row">
-                    <label class="col-sm-2 col-form-label"
-                    >{{ form.biview_database.label }}<strong class="text-danger"
-                    > *</strong
-                    ></label
-                    >
-                    <div class="col-sm-10">{{ form.biview_database }}</div>
+                  <label class="col-sm-2 col-form-label"
+                  >{{ form.is_source_1c.label }}<strong class="text-danger"
+                  > *</strong
+                  ></label>
+                  <div class="col-sm-10">{{ form.is_source_1c }}</div>
+                </div>
+
+                <div class="form-group row">
+                  <label class="col-sm-2 col-form-label">{{ form.biview_database.label }}</label>
+                  <div class="col-sm-10">{{ form.biview_database }}</div>
                 </div>
 
                 <script>
+
                   document.addEventListener("DOMContentLoaded", function () {
                     function updateConnections() {
-                      const typeSourceDatabase = document.getElementById("conn_type6");
+                      const typeSourceDatabase = document.getElementById("conn_type source_database_type");
                       const selectSourceConnection = document.getElementById("conn_type");
                     
                       const selectedDB = typeSourceDatabase.value;
@@ -337,8 +342,8 @@
                     }
                   
                     function updateTargetConnections() {
-                      const selectTargetDatabaseType = document.getElementById("conn_type7");
-                      const selectTargetConnectionType = document.getElementById("conn_type8");
+                      const selectTargetDatabaseType = document.getElementById("conn_type target_database_type");
+                      const selectTargetConnectionType = document.getElementById("conn_type target_connection_id");
 
                       console.log(selectTargetDatabaseType)
 
@@ -367,21 +372,11 @@
                         .catch((error) => console.error("Error fetching connections:", error));
                     }
                   
-                    document.getElementById("conn_type6").addEventListener("change", updateConnections);
-                    document.getElementById("conn_type7").addEventListener("change", updateTargetConnections);
+                    document.getElementById("conn_type source_database_type").addEventListener("change", updateConnections);
+                    document.getElementById("conn_type target_database_type").addEventListener("change", updateTargetConnections);
                   });
 
                 </script>
-
-                <div class="form-group row">
-                    <label class="col-sm-2 col-form-label"
-                    >{{ form.biview_project_type.label }}
-                        <strong class="text-danger"> *</strong>
-                    </label>
-                    <div class="col-sm-10">
-                        <div class="form-check">{{ form.biview_project_type }}</div>
-                    </div>
-                </div>
 
                 <div class="form-group row">
                     <label class="col-sm-2 col-form-label"
@@ -392,10 +387,10 @@
                 <script>
                   function TransferMonitoring() {
                       const transferSourceData = document.getElementById("transfer_source_data");
-                      const targetDatabaseType = document.getElementById("conn_type7");
-                      const targetConnID = document.getElementById("conn_type8");
-                      const targetSchema = document.getElementById("conn_type4");
-                      const targetType = document.getElementById("conn_type5");
+                      const targetDatabaseType = document.getElementById("conn_type target_database_type");
+                      const targetConnID = document.getElementById("conn_type target_connection_id");
+                      const targetSchema = document.getElementById("conn_type target_schema");
+                      const targetType = document.getElementById("conn_type target_type");
               
                       if (!transferSourceData.checked) {
                           targetDatabaseType.value = ''; 
@@ -422,12 +417,55 @@
                     </div>
 
                     <script>
+                      
+                      function clearSourceDatabases() {
+                        const selectSourceDatabase = document.getElementById("conn_type source_database");
+                        const selectDatabaseBIView = document.getElementById("conn_type biview_database");
+                        const selectProjectDatabase = document.getElementById("conn_type project_database");
+                      
+                        selectSourceDatabase.innerHTML = "";
+                        selectDatabaseBIView.innerHTML = "";
+                        selectProjectDatabase.innerHTML = "";
+                        selectTargetSchema.innerHTML = "";
+                      
+                        const emptyOption1 = document.createElement("option");
+                        emptyOption1.value = "";
+                        emptyOption1.textContent = " ";
+                      
+                        const emptyOption2 = document.createElement("option");
+                        emptyOption2.value = "";
+                        emptyOption2.textContent = " ";
+                      
+                        const emptyOption3 = document.createElement("option");
+                        emptyOption3.value = "";
+                        emptyOption3.textContent = " ";
+                      
+                        const emptyOption4 = document.createElement("option");
+                        emptyOption4.value = "";
+                        emptyOption4.textContent = " ";
+                      
+                        selectSourceDatabase.appendChild(emptyOption1);
+                        selectDatabaseBIView.appendChild(emptyOption2);
+                        selectProjectDatabase.appendChild(emptyOption3);
+                      }
+
+                      function clearTargetDatabases() {
+                        const selectTargetSchema = document.getElementById("conn_type target_schema");
+
+                        selectTargetSchema.innerHTML = "";
+
+                        const emptyOption = document.createElement("option");
+                        emptyOption.value = "";
+                        emptyOption.textContent = " ";
+
+                        selectTargetSchema.appendChild(emptyOption);
+                      }
 
                       function updateDatabases() {
                         const connSelect = document.getElementById("conn_type");
-                        const selectSourceDatabase = document.getElementById("conn_type1");
-                        const selectDatabaseBIView = document.getElementById("conn_type2");
-                        const selectProjectDatabase = document.getElementById("conn_type3");
+                        const selectSourceDatabase = document.getElementById("conn_type source_database");
+                        const selectDatabaseBIView = document.getElementById("conn_type biview_database");
+                        const selectProjectDatabase = document.getElementById("conn_type project_database");
                       
                         const selectedtargetConn = connSelect.value;
                         
@@ -479,8 +517,8 @@
                       }
                     
                       function updateTargetDatabases() {
-                        const selectTargetConnection = document.getElementById("conn_type8");
-                        const selectTargetSchema = document.getElementById("conn_type4");
+                        const selectTargetConnection = document.getElementById("conn_type target_connection_id");
+                        const selectTargetSchema = document.getElementById("conn_type target_schema");
                       
                         const selectedConn = selectTargetConnection.value;
                         
@@ -507,9 +545,34 @@
                           .catch(error => console.error('Error fetching connections:', error));
                       }
                       
-                      document.getElementById("conn_type").addEventListener("change", updateDatabases);
-                      document.getElementById("conn_type7").addEventListener("change", updateTargetDatabases);
+                      document.addEventListener("DOMContentLoaded", function() {
+                        document.getElementById("conn_type").addEventListener("change", updateDatabases);
+                        document.getElementById("conn_type target_database_type").addEventListener("change", updateTargetDatabases);
+
+                        document.getElementById("conn_type source_database_type").addEventListener("change", clearSourceDatabases);
+                        document.getElementById("conn_type target_database_type").addEventListener("change", clearTargetDatabases);
+                      });
                       
+                    </script>
+
+                    <script>
+                    
+                      function disableFromIsSource1C() {
+                        const isSource1C = document.getElementById("is_source_1c");
+                        const databaseBIView = document.getElementById("conn_type biview_database");
+                      
+                        if (!isSource1C.checked) {
+                          databaseBIView.value = '';
+                          databaseBIView.disabled = true;
+                        } else {
+                          databaseBIView.disabled = false;
+                        }
+                      }
+                    
+                      document.getElementById("is_source_1c").addEventListener("change", disableFromIsSource1C);
+                    
+                      disableFromIsSource1C();
+
                     </script>
 
                     <div class="form-group row">
@@ -525,7 +588,7 @@
                 </div>
 
                 <div class="button-submit">
-                    <button type="submit" class="btn btn-primary btn-no-margin" name="action" value="save" onclick="saveData()">
+                    <button type="submit" class="btn btn-primary btn-no-margin" name="action" value="save" onclick="validatesaveData(event)">
                         Save
                     </button>
 
@@ -662,7 +725,7 @@
       }
       // Get selected values
       const projectDatabase = document.querySelector(
-        '[name="conn_type3"]'
+        '[name="conn_type project_database"]'
       ).value;
 
       const connection = document.querySelector(
@@ -695,15 +758,66 @@
     isFormSaved = false;
   });
 
-  function saveData() {
-    isFormSaved = true;
+  const selectesProjectDatabase = document.getElementById('conn_type project_database'); // Исправьте ID
+
+  async function getProjectsDatabaseArray() {
+    try {
+      const response = await fetch(`/projectsview/api/get_all_projects/`);
+      const data = await response.json();
+      return data["Projects databases"];
+    } catch (error) {
+      console.error('Ошибка получения данных о проектах:', error);
+      return [];
+    }
   }
+
+  async function validatesaveData(event) {
+    event.preventDefault(); // Предотвращаем стандартное поведение формы
+    const projects_database_array = await getProjectsDatabaseArray();
+    const selectedDatabase = selectesProjectDatabase.value.trim(); // Убираем пробелы
+
+    // Проверяем существует ли база данных
+    if (projects_database_array.includes(selectedDatabase)) {
+      alert('Такой проект уже существует, выберите другую базу данных.');
+    } else {
+      saveData();
+      console.log('Данные успешно сохранены');
+    }
+  }
+
+  async function saveData() {
+    const form = document.getElementById("connection_form");
+    const formData = new FormData(form);
+
+    try {
+        const response = await fetch(`/projectsview/add`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error('Ошибка сохранения данных: ' + response.statusText);
+        }
+
+        const responseData = await response.json();
+
+        isFormSaved = true;
+        console.log('Данные успешно сохранены');
+
+        if (responseData.redirect) {
+            window.location.href = responseData.redirect;
+        }
+
+    } catch (error) {
+        console.error('Ошибка при сохранении данных:', error);
+    }
+}
 
   window.addEventListener('beforeunload', function(event) {
     if (!isFormSaved) {
       const message = 'На странице остались несохраненные изменения. Вы уверены, что хотите уйти?';
-      event.returnValue = message;
-      return message;
+      event.returnValue = message; // Для старых браузеров
+      return message; // Для современных браузеров
     }
   });
 </script>
