@@ -547,7 +547,7 @@
                       
                       document.addEventListener("DOMContentLoaded", function() {
                         document.getElementById("conn_type").addEventListener("change", updateDatabases);
-                        document.getElementById("conn_type target_database_type").addEventListener("change", updateTargetDatabases);
+                        document.getElementById("conn_type target_connection_id").addEventListener("change", updateTargetDatabases);
 
                         document.getElementById("conn_type source_database_type").addEventListener("change", clearSourceDatabases);
                         document.getElementById("conn_type target_database_type").addEventListener("change", clearTargetDatabases);
@@ -758,7 +758,7 @@
     isFormSaved = false;
   });
 
-  const selectesProjectDatabase = document.getElementById('conn_type project_database'); // Исправьте ID
+  const selectesProjectDatabase = document.getElementById('conn_type project_database');
 
   async function getProjectsDatabaseArray() {
     try {
@@ -800,9 +800,8 @@
         }
 
         const responseData = await response.json();
-
+        fetch(`/projectsview/api/validate_db?project_database=${projectDatabase}`);
         isFormSaved = true;
-        console.log('Данные успешно сохранены');
 
         if (responseData.redirect) {
             window.location.href = responseData.redirect;

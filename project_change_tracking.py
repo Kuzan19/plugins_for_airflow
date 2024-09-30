@@ -1,5 +1,6 @@
 import json
 import flask
+import re
 
 from flask import Blueprint, request, jsonify, url_for, flash
 from flask_appbuilder import expose, BaseView as AppBuilderBaseView
@@ -17,7 +18,6 @@ from airflow.models import Connection
 from airflow.providers.microsoft.mssql.hooks.mssql import MsSqlHook as MSSH
 from airflow.providers.postgres.hooks.postgres import PostgresHook as PH
 from airflow.providers.exasol.hooks.exasol import ExasolHook as EH
-
 
 bp = Blueprint(
     "ct_projects_administration",
@@ -332,6 +332,7 @@ class ProjectsView(AppBuilderBaseView):
                         projects.append(dictionary)
 
                     print(projects)
+
                 except Exception as e:
                     flash(str(e), category="error")
         return self.render_template("project_change_tracking.html",
@@ -444,20 +445,20 @@ class ProjectsView(AppBuilderBaseView):
                                     biview_database = '{form_update.biview_database.data}',
                                     transfer_source_data = {form_update.transfer_source_data.data},
                                     target_database_type = {replace_response_data(
-                                                form_update.target_database_type.data)},
+                form_update.target_database_type.data)},
                                     target_connection_id = {replace_response_data(
-                                                form_update.target_connection_id.data)},
+                form_update.target_connection_id.data)},
                                     target_schema = {replace_response_data(form_update.target_schema.data)},
                                     target_type = {replace_response_data(form_update.target_type.data)},
                                     update_dags_start_date = {replace_response_data(
-                                                form_update.update_dags_start_date.data)},
+                form_update.update_dags_start_date.data)},
                                     update_dags_start_time = {replace_response_data(
-                                                form_update.update_dags_start_time.data)},
+                form_update.update_dags_start_time.data)},
                                     update_dags_schedule = '{form_update.update_dags_schedule.data}',
                                     transfer_dags_start_date = {replace_response_data(
-                                                form_update.transfer_dags_start_date.data)},
+                form_update.transfer_dags_start_date.data)},
                                     transfer_dags_start_time = {replace_response_data(
-                                                form_update.transfer_dags_start_time.data)},
+                form_update.transfer_dags_start_time.data)},
                                     transfer_dags_schedule = '{form_update.transfer_dags_schedule.data}'
                                 WHERE project_database = '{project_database}'
                                 ;"""
@@ -504,10 +505,20 @@ class ProjectsView(AppBuilderBaseView):
     def projects_to_load(self):
         """Отображение списка таблиц"""
         project_database = request.args.get('project_database')
-        connection = request.args.get('connection')
+        biview_database = request.args.get('biview_database')
+        source_database = request.args.get('source_database')
         source_database_type = request.args.get('source_database_type')
-        return self.render_template("projects_to_load.html", project_database=project_database, connection=connection,
-                                    source_database_type=source_database_type)
+        connection = request.args.get('connection')
+
+        project_data = {
+            'connection': connection,
+            'project_database': project_database,
+            'biview_database': biview_database,
+            'source_database': source_database,
+            'source_database_type': source_database_type
+        }
+
+        return self.render_template("projects_to_load.html", project_data=project_data)
 
     # <-------------- API Endpoints -------------->
 
@@ -589,7 +600,7 @@ class ProjectsView(AppBuilderBaseView):
         """Эндпоинт возвращает json данные о конкретном CT Project"""
 
         project_database = request.args.get('project_database')
-        print(project_database)
+
         sql_select_query = """SELECT * FROM airflow.atk_ct.ct_projects WHERE project_database = %s;"""
 
         with GetDatabase.get_connection_postgres().get_conn() as conn:
@@ -709,6 +720,84 @@ class ProjectsView(AppBuilderBaseView):
         except Exception as e:
             print(f"Error processing request: {e}")
             return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    @expose('/api/validate_db', methods=["GET"])
+    def ct_validate_db(self):
+
+        project_database = request.args.get('project_database')
+
+        sql_query_project_data = """ SELECT
+                                        source_database_type,
+                                        source_connection_id,
+                                        project_database,
+                                        source_database,
+                                        biview_database,
+                                        is_source_1c,
+                                        transfer_source_data,
+                                        target_database_type,
+                                        target_connection_id,
+                                        target_schema,
+                                        target_type 
+                                    FROM airflow.atk_ct.ct_projects
+                                    WHERE project_database = %s;
+                                    """
+
+        columns = [field.label.text for field in ProjectForm()][:11]
+        with GetDatabase.get_connection_postgres().get_conn() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql_query_project_data, (project_database,))
+                rows = cursor.fetchall()
+                project_data = [dict(zip(columns, row)) for row in rows][0]
+
+        manage_tables = 0
+        force_drop_tables = 0
+
+        source_db_name = project_data["Source Database"]
+        ct_db_name = project_data["Project Database"]  # will change!
+
+        if project_data['Is Source 1C?']:
+            source_is_1c = 1
+            biview_db_name = project_data["BIView Database"]
+            biview_schema_name = 'dbo'
+        elif not project_data['Is Source 1C?']:
+            source_is_1c = 0
+            biview_db_name = ""
+            biview_schema_name = ""
+        else:
+            message = 'No one matches!'
+            return jsonify({'status': 'error', 'message': message}), 500
+        try:
+
+            sql_execute_query = f""" EXECUTE [CT_TEST].[dbo].[ct_validatedb]
+                                @source_db_name = {replace_response_data(source_db_name)},
+                                @source_schema_name = 'dbo',
+                                @source_is_1c = {source_is_1c},
+                                @biview_db_name = {replace_response_data(biview_db_name)},
+                                @biview_schema_name = {replace_response_data(biview_schema_name)},
+                                @ct_db_name = {replace_response_data(ct_db_name)},
+                                @ct_schema_name = 'dbo',
+                                @target_db_type = 'EXASOL',
+                                @target_db_name = 'DB1',
+                                @target_schema_name = 'STG_CDC',
+                                @manage_tables = {manage_tables},
+                                @force_drop_tables = {force_drop_tables};
+                                """
+            print(sql_execute_query)
+            with GetDatabase.get_hook_for_database(project_data['Source Database Type'],
+                                                   project_data['Source Connection ID']).get_conn() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(sql_execute_query)
+                conn.commit()
+
+            return jsonify({'status': 'success', 'script': sql_execute_query}), 200
+        except Exception as e:
+            pattern = r'"([^"]*?@[\w_]+)"'
+            wrong_field = re.findall(pattern, str(e))
+            if not wrong_field:
+                message = str(e)
+            else:
+                message = f'Wrong field {wrong_field[0][1:]}!'
+            return jsonify({'status': 'error', 'message': message}), 500
 
 
 v_appbuilder_view = ProjectsView()

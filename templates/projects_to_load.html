@@ -118,6 +118,7 @@
           style="height: 50vh; width: 100%"
           class="ag-theme-alpine"
         >
+        <div id="loading-indicator" style="display:none;">Loading tables, please waiting..</div>
         </div>
         <div id="buttonContainer" class="button-submit">
           <button
@@ -152,12 +153,18 @@
 </div>
 
 <script>
-  const connection = "{{ connection }}";
-  const project_database = "{{ project_database }}";
-  const source_database_type = "{{ source_database_type }}";
-  console.log("connection: ", connection);
-  console.log("project_database: ", project_database);
-  console.log("source_database_type: ", source_database_type);
+  const connection = "{{ project_data.connection }}";
+  const project_database = "{{ project_data.project_database }}";
+  const source_database = "{{ project_data.source_database }}";
+  const biview_database = "{{ project_data.biview_database }}";
+  const source_database_type = "{{ project_data.source_database_type }}";
+  
+  console.log(connection);
+  console.log(project_database);
+  console.log(source_database);
+  console.log(biview_database);
+  console.log(source_database_type);
+
   const dataToSend = [];
   let gridOptions = null;
 
@@ -375,21 +382,39 @@
         const updatedData = await fetchData(
           `/projectsview/api/fetch_data?project_database=${encodeURIComponent(project_database)}`
         );
+
         initializeGrid(updatedData);
       } catch (error) {
         handleError(error, "Error updating data:");
       }
     }
 
-    function initializeEventListeners() {
+    async function initializeEventListeners() {
       document
         .getElementById("button-send-datatoload")
         .addEventListener("click", handleDataLoad);
+
       document
         .getElementById("button_update_tables_list")
-        .addEventListener("click", (e) => {
+        .addEventListener("click", async (e) => {
           e.preventDefault();
-          location.reload();;
+
+          document.getElementById("loading-indicator").style.display = "block";
+
+          try {
+            const response = await fetch(`/projectsview/api/validate_db?project_database=${project_database}`);
+            const data = await response.json();
+            
+            document.getElementById("loading-indicator").style.display = "none";
+
+            if (data.status === "error") {
+              displayError(data.message || "Failed to update tables list");
+              return;
+            }
+            location.reload();
+          } catch (error) {
+            console.error("Error during table update:", error);
+          }
         });
     }
 

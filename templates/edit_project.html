@@ -874,16 +874,19 @@
       const source_database_type = document.querySelector(
         '[name="source_database_type"]'
       ).value;
+      
+      const biviewDatabase = document.querySelector(
+        '[name="conn_type biview_database"]'
+      ).value;
+
+      const sourceDatabase = document.querySelector(
+        '[name="conn_type source_database"]'
+      ).value;
 
       // Construct the URL with query parameters
       const url =
         "{{ url_for('ProjectsView.projects_to_load') }}" +
-        `?project_database=${encodeURIComponent(
-          projectDatabase
-        )}&connection=${encodeURIComponent(
-          connection
-        )}&source_database_type=${encodeURIComponent(source_database_type)}`;
-
+        `?project_database=${encodeURIComponent(projectDatabase)}&connection=${encodeURIComponent(connection)}&biview_database=${encodeURIComponent(biviewDatabase)}&source_database=${encodeURIComponent(sourceDatabase)}&source_database_type=${encodeURIComponent(source_database_type)}`;
       window.location.href = url;
     });
 
