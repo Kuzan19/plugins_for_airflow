@@ -1,6 +1,7 @@
 import json
 import flask
 import re
+import time
 
 from flask import Blueprint, request, jsonify, url_for, flash
 from flask_appbuilder import expose, BaseView as AppBuilderBaseView
@@ -170,6 +171,11 @@ class ProjectForm(Form):
                    }
     )
 
+    is_source_1c = BooleanField(
+        'Is Source 1C?',
+        false_values=(False, 'NO', 'YES')
+    )
+
     biview_database = SelectField(
         'BIView Database',
         validators=[InputRequired()],
@@ -192,11 +198,6 @@ class ProjectForm(Form):
     #                "type": "radio"
     #                }
     # )
-
-    is_source_1c = BooleanField(
-        'Is Source 1C?',
-        false_values=(False, 'NO', 'YES')
-    )
 
     transfer_source_data = BooleanField(
         'Transfer Source Data',
@@ -304,30 +305,21 @@ class ProjectsView(AppBuilderBaseView):
 
                     projects = []
                     print(raw_projects)
+                    keys_to_clean = [
+                        "BIView Database",
+                        "Target Database Type",
+                        "Target Connection ID",
+                        "Target Schema",
+                        "Target Type"
+                    ]
+
                     for dictionary in raw_projects:
+                        for key in keys_to_clean:
+                            if dictionary.get(key) in ['NULL', None]:
+                                dictionary[key] = ''
 
-                        if dictionary["Target Database Type"] == 'NULL' or dictionary["Target Database Type"] is None:
-                            dictionary["Target Database Type"] = ''
-
-                        if dictionary["Target Connection ID"] == 'NULL' or dictionary["Target Connection ID"] is None:
-                            dictionary["Target Connection ID"] = ''
-
-                        if dictionary["Target Schema"] == 'NULL' or dictionary["Target Schema"] is None:
-                            dictionary["Target Schema"] = ''
-
-                        if dictionary["Target Type"] == 'NULL' or dictionary["Target Type"] is None:
-                            dictionary["Target Type"] = ''
-
-                        if dictionary['Transfer Source Data'] is False:
-
-                            dictionary['Transfer Source Data'] = 'No'
-                        else:
-                            dictionary['Transfer Source Data'] = 'Yes'
-
-                        if dictionary['Is Source 1C?'] is False:
-                            dictionary['Is Source 1C?'] = 'No'
-                        else:
-                            dictionary['Is Source 1C?'] = 'Yes'
+                        dictionary['Transfer Source Data'] = 'Yes' if dictionary.get('Transfer Source Data') else 'No'
+                        dictionary['Is Source 1C?'] = 'Yes' if dictionary.get('Is Source 1C?') else 'No'
 
                         projects.append(dictionary)
 
@@ -376,7 +368,7 @@ class ProjectsView(AppBuilderBaseView):
                                     '{form_add.project_database.data}',
                                     '{form_add.source_database.data}',
                                     '{form_add.is_source_1c.data}',
-                                    '{form_add.biview_database.data}',
+                                    {replace_response_data(form_add.biview_database.data)},
                                     {form_add.transfer_source_data.data},
                                     {replace_response_data(form_add.target_database_type.data)},
                                     {replace_response_data(form_add.target_connection_id.data)},
@@ -390,7 +382,7 @@ class ProjectsView(AppBuilderBaseView):
                                     '{form_add.transfer_dags_schedule.data}'
                                     );
                                 """
-
+            print(sql_insert_query)
             try:
 
                 if form_add.source_database_type == " " or form_add.target_database_type == " ":
@@ -417,6 +409,10 @@ class ProjectsView(AppBuilderBaseView):
                 else:
                     flash(str(e), category='warning')
 
+                return jsonify({
+                    'success': False,
+                    'message': f'{str(e)}',
+                })
         return self.render_template("add_projects.html", form=form)
 
     @expose("/edit/<string:project_database>", methods=['GET', 'POST'])
@@ -663,7 +659,7 @@ class ProjectsView(AppBuilderBaseView):
             print(e)
             print('!!!!!!!!!!!!!!!!')
             if 'Invalid object name' in str(e):
-                return jsonify({'status': 'error', 'message': 'Table is not defined'})
+                return jsonify({'status': 'error', 'message': 'Tables is not defined'})
             else:
                 return jsonify({'status': 'error', 'message': str(e)})
 
@@ -731,8 +727,8 @@ class ProjectsView(AppBuilderBaseView):
                                         source_connection_id,
                                         project_database,
                                         source_database,
-                                        biview_database,
                                         is_source_1c,
+                                        biview_database,
                                         transfer_source_data,
                                         target_database_type,
                                         target_connection_id,
@@ -788,8 +784,10 @@ class ProjectsView(AppBuilderBaseView):
                 with conn.cursor() as cursor:
                     cursor.execute(sql_execute_query)
                 conn.commit()
+            # time.sleep(5)
 
             return jsonify({'status': 'success', 'script': sql_execute_query}), 200
+
         except Exception as e:
             pattern = r'"([^"]*?@[\w_]+)"'
             wrong_field = re.findall(pattern, str(e))

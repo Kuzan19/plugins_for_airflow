@@ -440,13 +440,19 @@
                   const selectedSourceConn = connSourceSelect.value;
 
                   selectDatabaseBIView.innerHTML = "";
-                    selectProjectDatabase.innerHTML = "";
-                    selectSourceDatabase.innerHTML = "";
+                  selectProjectDatabase.innerHTML = "";
+                  selectSourceDatabase.innerHTML = "";
+
+                  const emptyOption1 = document.createElement("option");
+                  emptyOption1.value = "";
+                  emptyOption1.textContent = " ";
+                  selectDatabaseBIView.appendChild(emptyOption1);
 
                   fetch(`/projectsview/api/get_source_database?connection=${selectedSourceConn}`)
                       .then(response => response.json())
                       .then(connections => {
                         connections.forEach(connection => {
+                          console.log(connection)
                           const matchingSourceDatabase = connections.find(connection => connection === fillinProjectDatabase);
                         
                           const option1 = document.createElement("option");
@@ -457,6 +463,7 @@
                           if (connection == BIViewSelect) {
                             option1.selected = true;
                           }
+
                           selectDatabaseBIView.appendChild(option1);
                           
                           if (matchingSourceDatabase) {

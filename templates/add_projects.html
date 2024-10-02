@@ -243,7 +243,19 @@
         height: 38px;
     }
 
-
+    #loading-indicator {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        color: #017cff;
+        background-color: #f9f9f9;
+        border: 1px solid #d3d3d3;
+        padding: 8px 20px;
+        border-radius: 4px;
+        display: inline-block;
+        text-align: center;
+        margin-top: 5px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); 
+  }
 
 
 </style>
@@ -426,7 +438,6 @@
                         selectSourceDatabase.innerHTML = "";
                         selectDatabaseBIView.innerHTML = "";
                         selectProjectDatabase.innerHTML = "";
-                        selectTargetSchema.innerHTML = "";
                       
                         const emptyOption1 = document.createElement("option");
                         emptyOption1.value = "";
@@ -644,6 +655,8 @@
                         <button type="button" class="btn cancel" onclick="clearForm()">Clear</button>
                     </div>
                 </div>
+                
+                <div id="loading-indicator" style="display:none;">Loading tables, please waiting..</div>
 
                 <script>
                     function openForm() {
@@ -688,7 +701,6 @@
         </div>
     </div>
 </div>
-
 
 <script>
 
@@ -781,13 +793,17 @@
       alert('Такой проект уже существует, выберите другую базу данных.');
     } else {
       saveData();
-      console.log('Данные успешно сохранены');
     }
   }
 
   async function saveData() {
+    console.log("Okay i'm in!")
     const form = document.getElementById("connection_form");
     const formData = new FormData(form);
+    const projectDatabase = document.querySelector('[name="conn_type project_database"]').value;
+    console.log(projectDatabase)
+
+    document.getElementById("loading-indicator").style.display = "block";
 
     try {
         const response = await fetch(`/projectsview/add`, {
@@ -800,7 +816,16 @@
         }
 
         const responseData = await response.json();
-        fetch(`/projectsview/api/validate_db?project_database=${projectDatabase}`);
+
+        console.log(responseData)
+
+        if (projectDatabase) {
+            console.log("API запрос успешно отправлен!")
+            await fetch(`/projectsview/api/validate_db?project_database=${encodeURIComponent(projectDatabase)}`);
+        }
+
+        document.getElementById("loading-indicator").style.display = "none";
+
         isFormSaved = true;
 
         if (responseData.redirect) {
@@ -808,15 +833,15 @@
         }
 
     } catch (error) {
-        console.error('Ошибка при сохранении данных:', error);
+        console.error('Ошибка при сохранении данных! Вот смотри:', error);
     }
-}
+  }
 
   window.addEventListener('beforeunload', function(event) {
     if (!isFormSaved) {
       const message = 'На странице остались несохраненные изменения. Вы уверены, что хотите уйти?';
-      event.returnValue = message; // Для старых браузеров
-      return message; // Для современных браузеров
+      event.returnValue = message;
+      return message;
     }
   });
 </script>
