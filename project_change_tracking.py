@@ -438,7 +438,8 @@ class ProjectsView(AppBuilderBaseView):
             sql_update_query = f"""
                                 UPDATE airflow.atk_ct.ct_projects
                                 SET source_database = '{form_update.source_database.data}',
-                                    biview_database = '{form_update.biview_database.data}',
+                                    is_source_1c = {form_update.is_source_1c.data},
+                                    biview_database = {replace_response_data(form_update.biview_database.data)},
                                     transfer_source_data = {form_update.transfer_source_data.data},
                                     target_database_type = {replace_response_data(
                 form_update.target_database_type.data)},
@@ -458,7 +459,7 @@ class ProjectsView(AppBuilderBaseView):
                                     transfer_dags_schedule = '{form_update.transfer_dags_schedule.data}'
                                 WHERE project_database = '{project_database}'
                                 ;"""
-
+            print(sql_update_query)
             try:
                 if form_update.source_database_type == " " or form_update.target_database_type == " ":
                     raise ValueError("Некорректное значение для типа базы данных!")
@@ -469,16 +470,22 @@ class ProjectsView(AppBuilderBaseView):
 
                 flash("The project has been successfully modified!", category="info")
 
-                return flask.redirect(url_for('ProjectsView.edit_project_data', project_database=project_database))
+                return jsonify({'success': True, 'message': 'The project has been saved successfully.',
+                                'redirect': url_for('ProjectsView.edit_project_data',
+                                                    project_database=project_database)})
+                # return flask.redirect(url_for('ProjectsView.edit_project_data', project_database=project_database))
 
             except Exception as e:
 
                 if 'duplicate key' in str(e):
                     flash("Данное имя проекта уже существует! Выберите другое.", category='warning')
-                elif 'None' in str(e):
-                    flash("Введите дату и время!", category='warning')
                 else:
                     flash(str(e), category='warning')
+
+                return jsonify({
+                    'success': False,
+                    'message': f'{str(e)}',
+                })
 
         return self.render_template("edit_project.html", form=form_exist)
 
@@ -789,6 +796,9 @@ class ProjectsView(AppBuilderBaseView):
             return jsonify({'status': 'success', 'script': sql_execute_query}), 200
 
         except Exception as e:
+            if 'error message 20018' in str(e):
+                message = "Invalid database selected for table generation!"
+                return jsonify({'status': 'error', 'message': message}), 500
             pattern = r'"([^"]*?@[\w_]+)"'
             wrong_field = re.findall(pattern, str(e))
             if not wrong_field:

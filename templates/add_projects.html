@@ -656,7 +656,7 @@
                     </div>
                 </div>
                 
-                <div id="loading-indicator" style="display:none;">Loading tables, please waiting..</div>
+                <div id="loading-indicator" style="display:none;">Loading tables, please wait..</div>
 
                 <script>
                     function openForm() {
@@ -784,11 +784,10 @@
   }
 
   async function validatesaveData(event) {
-    event.preventDefault(); // Предотвращаем стандартное поведение формы
+    event.preventDefault();
     const projects_database_array = await getProjectsDatabaseArray();
-    const selectedDatabase = selectesProjectDatabase.value.trim(); // Убираем пробелы
+    const selectedDatabase = selectesProjectDatabase.value.trim();
 
-    // Проверяем существует ли база данных
     if (projects_database_array.includes(selectedDatabase)) {
       alert('Такой проект уже существует, выберите другую базу данных.');
     } else {
@@ -797,11 +796,9 @@
   }
 
   async function saveData() {
-    console.log("Okay i'm in!")
     const form = document.getElementById("connection_form");
     const formData = new FormData(form);
     const projectDatabase = document.querySelector('[name="conn_type project_database"]').value;
-    console.log(projectDatabase)
 
     document.getElementById("loading-indicator").style.display = "block";
 

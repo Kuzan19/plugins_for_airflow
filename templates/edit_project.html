@@ -242,6 +242,20 @@
         height: 38px;
     }
 
+    #loading-indicator {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        color: #017cff;
+        background-color: #f9f9f9;
+        border: 1px solid #d3d3d3;
+        padding: 8px 20px;
+        border-radius: 4px;
+        display: inline-block;
+        text-align: center;
+        margin-top: 5px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); 
+  }
+
 
 </style>
 
@@ -721,7 +735,7 @@
                 </div>
 
                 <div class="button-submit">
-                    <button type="submit" class="btn btn-primary btn-no-margin" name="action" value="save" onclick="saveData()">
+                    <button type="submit" class="btn btn-primary btn-no-margin" name="action" value="save" onclick="validatesaveData(event)">
                         Save
                     </button>
 
@@ -784,6 +798,8 @@
                         <button type="button" class="btn cancel" onclick="clearForm()">Clear</button>
                     </div>
                 </div>
+
+                <div id="loading-indicator" style="display:none;">Loading tables, please wait..</div>
 
                 <script>
                     function openForm() {
@@ -906,9 +922,49 @@
     isFormSaved = false;
   });
 
-  function saveData() {
-    isFormSaved = true;
+  const selectesProjectDatabase = document.getElementById('conn_type project_database');
+
+  async function validatesaveData(event) {
+    event.preventDefault()
+    saveData();
   }
+
+  async function saveData() {
+    const form = document.getElementById("connection_form");
+    const formData = new FormData(form);
+    const projectDatabase = document.querySelector('[name="conn_type project_database"]').value;
+
+    document.getElementById("loading-indicator").style.display = "block";
+
+    try {
+      const response = await fetch(`/projectsview/edit/${encodeURIComponent(projectDatabase)}`, {
+            method: 'POST',
+            body: formData,
+        });
+
+      if (!response.ok) {
+          throw new Error('Ошибка сохранения данных: ' + response.statusText);
+      }
+
+      const responseData = await response.json();
+
+      if (projectDatabase) {
+            console.log("API запрос успешно отправлен!")
+            await fetch(`/projectsview/api/validate_db?project_database=${encodeURIComponent(projectDatabase)}`);
+        }
+
+      document.getElementById("loading-indicator").style.display = "none";
+
+      isFormSaved = true;
+
+      if (responseData.redirect) {
+            window.location.href = responseData.redirect;
+      }
+    }
+    catch (error) {
+        console.error('Ошибка при сохранении данных! Вот смотри:', error);
+    }
+  };
 
   window.addEventListener('beforeunload', function(event) {
     if (!isFormSaved) {
