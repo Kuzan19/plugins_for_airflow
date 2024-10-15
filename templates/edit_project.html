@@ -433,7 +433,10 @@
                 </div>
 
                 <div class="form-group row">
-                  <label class="col-sm-2 col-form-label">{{ form.biview_database.label }}</label>
+                  <label class="col-sm-2 col-form-label">
+                    {{ form.biview_database.label }}
+                    <strong class="text-danger" id="biview-database-required" style="display: none;"> *</strong>
+                  </label>
                   <div class="col-sm-10">{{ form.biview_database }}</div>
                 </div>
                 
@@ -462,23 +465,12 @@
                   emptyOption1.textContent = " ";
                   selectDatabaseBIView.appendChild(emptyOption1);
 
-                  fetch(`/projectsview/api/get_source_database?connection=${selectedSourceConn}`)
+                  fetch(`/projectsview/api/get_source_database?connection=${selectedSourceConn}&database_is_biview=False`)
                       .then(response => response.json())
                       .then(connections => {
                         connections.forEach(connection => {
                           console.log(connection)
                           const matchingSourceDatabase = connections.find(connection => connection === fillinProjectDatabase);
-                        
-                          const option1 = document.createElement("option");
-                          option1.value = connection;
-                          option1.textContent = connection;
-                          option1.classList.add("form-control");
-                        
-                          if (connection == BIViewSelect) {
-                            option1.selected = true;
-                          }
-
-                          selectDatabaseBIView.appendChild(option1);
                           
                           if (matchingSourceDatabase) {
                             const option2 = document.createElement("option");
@@ -505,6 +497,27 @@
                           }
                       
                         selectSourceDatabase.appendChild(option3);
+                        });
+                      })
+                      .catch(error => console.error('Error fetching connections:', error));
+
+                      fetch(`/projectsview/api/get_source_database?connection=${selectedSourceConn}&database_is_biview=True`)
+                      .then(response => response.json())
+                      .then(connections => {
+                        connections.forEach(connection => {
+                          console.log(connection)
+                          const matchingSourceDatabase = connections.find(connection => connection === fillinProjectDatabase);
+                        
+                          const option1 = document.createElement("option");
+                          option1.value = connection;
+                          option1.textContent = connection;
+                          option1.classList.add("form-control");
+                        
+                          if (connection == BIViewSelect) {
+                            option1.selected = true;
+                          }
+
+                          selectDatabaseBIView.appendChild(option1);
                         });
                       })
                       .catch(error => console.error('Error fetching connections:', error));
@@ -570,17 +583,12 @@
                           selectDatabaseBIView.appendChild(emptyOption1);
                           selectProjectDatabase.appendChild(emptyOption2);
                         
-                          fetch(`/projectsview/api/get_source_database?connection=${selectedtargetConn}`)
+                          fetch(`/projectsview/api/get_source_database?connection=${selectedtargetConn}&database_is_biview=False`)
                             .then(response => response.json())
                             .then(connections => {
                               console.log(connections);
                               connections.forEach(connection => {
-                                const option1 = document.createElement("option");
-                                option1.value = connection;
-                                option1.textContent = connection;
-                                option1.classList.add("form-control");
-                                selectDatabaseBIView.appendChild(option1);
-                              
+
                                 const option2 = document.createElement("option");
                                 option2.value = connection;
                                 option2.textContent = connection;
@@ -592,6 +600,20 @@
                                 option3.textContent = connection;
                                 option3.classList.add("form-control");
                                 selectSourceDatabase.appendChild(option3);
+                              });
+                            })
+                            .catch(error => console.error('Error fetching connections:', error));
+
+                            fetch(`/projectsview/api/get_source_database?connection=${selectedtargetConn}&database_is_biview=True`)
+                            .then(response => response.json())
+                            .then(connections => {
+                              console.log(connections);
+                              connections.forEach(connection => {
+                                const option1 = document.createElement("option");
+                                option1.value = connection;
+                                option1.textContent = connection;
+                                option1.classList.add("form-control");
+                                selectDatabaseBIView.appendChild(option1);
                               });
                             })
                             .catch(error => console.error('Error fetching connections:', error));
@@ -667,12 +689,17 @@
                   function disableFromIsSource1C() {
                     const isSource1C = document.getElementById("is_source_1c");
                     const databaseBIView = document.getElementById("conn_type biview_database");
+                    const requiredIndicator = document.getElementById("biview-database-required");
                   
                     if (!isSource1C.checked) {
                       databaseBIView.value = '';
                       databaseBIView.disabled = true;
+                      databaseBIView.removeAttribute('required');
+                      requiredIndicator.style.display = 'none';
                     } else {
                       databaseBIView.disabled = false;
+                      databaseBIView.setAttribute('required', 'required');
+                      requiredIndicator.style.display = 'inline';
                     }
                   }
                 
@@ -747,6 +774,8 @@
                     >
 
                     <button class="btn btn-secondary btn-no-margin" id="dagsButton">DAGs</button>
+
+                    <button class="btn btn-secondary btn-no-margin" id="dagsButton" onclick="useCTValidate(event)">Use validate</button>
 
                     <a href="{{ url_for('ProjectsView.project_list') }}" class="btn btn-sm btn-default btn-no-margin"
                        data-toggle="tooltip"
@@ -926,6 +955,18 @@
 
   async function validatesaveData(event) {
     event.preventDefault()
+
+    const isSource1C = document.getElementById("is_source_1c");
+    const databaseBIView = document.getElementById("conn_type biview_database");
+
+    if (isSource1C.checked && databaseBIView.value === '') {
+      event.preventDefault();
+      alert('Пожалуйста, заполните все обязательные поля, отмеченные звездочкой <*>.');
+      return false
+    }
+
+    console.log("Форма прошла валидацию!")
+
     saveData();
   }
 
@@ -973,6 +1014,22 @@
       return message;
     }
   });
+</script>
+
+<script>
+  function useCTValidate(event) {
+    event.preventDefault()
+    const projectDatabase = document.querySelector('[name="conn_type project_database"]').value;
+    
+    try {
+      const response = fetch(`/projectsview/api/dag_validate_db?project_database=${encodeURIComponent(projectDatabase)}`)
+      console.log(response)
+      alert('DAG был запущен!')
+    }
+    catch (error) {
+      console.error('Ошибка при отправке API запроса! Вот смотри:', error)
+    }
+  }
 </script>
 
 {% endblock %}

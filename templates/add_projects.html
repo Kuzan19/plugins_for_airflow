@@ -298,11 +298,7 @@
                 </div>
 
                 <div class="form-group row">
-                    <label class="col-sm-2 col-form-label"
-                    >{{ form.source_database.label }}<strong class="text-danger"
-                    > *</strong
-                    ></label
-                    >
+                    <label class="col-sm-2 col-form-label">{{ form.source_database.label }}<strong class="text-danger"> *</strong></label>
                     <div class="col-sm-10">{{ form.source_database }}</div>
                 </div>
 
@@ -315,10 +311,14 @@
                 </div>
 
                 <div class="form-group row">
-                  <label class="col-sm-2 col-form-label">{{ form.biview_database.label }}</label>
+                  <label class="col-sm-2 col-form-label">
+                    {{ form.biview_database.label }}
+                    <strong class="text-danger" id="biview-database-required" style="display: none;"> *</strong>
+                  </label>
                   <div class="col-sm-10">{{ form.biview_database }}</div>
                 </div>
 
+                
                 <script>
 
                   document.addEventListener("DOMContentLoaded", function () {
@@ -414,7 +414,7 @@
               
 
                   setInterval(TransferMonitoring, 200);
-              </script>
+                </script>
 
                 <div id="targetFields" class="target-fields">
 
@@ -500,17 +500,12 @@
                           selectDatabaseBIView.appendChild(emptyOption1);
                           selectProjectDatabase.appendChild(emptyOption2);
                         
-                          fetch(`/projectsview/api/get_source_database?connection=${selectedtargetConn}`)
+                          fetch(`/projectsview/api/get_source_database?connection=${selectedtargetConn}&database_is_biview=False`)
                             .then(response => response.json())
                             .then(connections => {
                               console.log(connections);
                               connections.forEach(connection => {
-                                const option1 = document.createElement("option");
-                                option1.value = connection;
-                                option1.textContent = connection;
-                                option1.classList.add("form-control");
-                                selectDatabaseBIView.appendChild(option1);
-                              
+
                                 const option2 = document.createElement("option");
                                 option2.value = connection;
                                 option2.textContent = connection;
@@ -522,6 +517,20 @@
                                 option3.textContent = connection;
                                 option3.classList.add("form-control");
                                 selectSourceDatabase.appendChild(option3);
+                              });
+                            })
+                            .catch(error => console.error('Error fetching connections:', error));
+
+                            fetch(`/projectsview/api/get_source_database?connection=${selectedtargetConn}&database_is_biview=True`)
+                            .then(response => response.json())
+                            .then(connections => {
+                              console.log(connections);
+                              connections.forEach(connection => {
+                                const option1 = document.createElement("option");
+                                option1.value = connection;
+                                option1.textContent = connection;
+                                option1.classList.add("form-control");
+                                selectDatabaseBIView.appendChild(option1);
                               });
                             })
                             .catch(error => console.error('Error fetching connections:', error));
@@ -571,12 +580,17 @@
                       function disableFromIsSource1C() {
                         const isSource1C = document.getElementById("is_source_1c");
                         const databaseBIView = document.getElementById("conn_type biview_database");
+                        const requiredIndicator = document.getElementById("biview-database-required");
                       
                         if (!isSource1C.checked) {
                           databaseBIView.value = '';
                           databaseBIView.disabled = true;
+                          databaseBIView.removeAttribute('required');
+                          requiredIndicator.style.display = 'none';
                         } else {
                           databaseBIView.disabled = false;
+                          databaseBIView.setAttribute('required', 'required');
+                          requiredIndicator.style.display = 'inline';
                         }
                       }
                     
@@ -788,9 +802,21 @@
     const projects_database_array = await getProjectsDatabaseArray();
     const selectedDatabase = selectesProjectDatabase.value.trim();
 
+    const isSource1C = document.getElementById("is_source_1c");
+    const databaseBIView = document.getElementById("conn_type biview_database");
+
+    if (isSource1C.checked && databaseBIView.value === '') {
+      event.preventDefault();
+      alert('Пожалуйста, заполните все обязательные поля, отмеченные звездочкой <*>.');
+      return false
+    }
+
+    console.log("Форма прошла валидацию!")
+
     if (projects_database_array.includes(selectedDatabase)) {
       alert('Такой проект уже существует, выберите другую базу данных.');
-    } else {
+    } 
+    else {
       saveData();
     }
   }

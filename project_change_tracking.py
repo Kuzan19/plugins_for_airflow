@@ -1,4 +1,6 @@
 import json
+import subprocess
+
 import flask
 import re
 import time
@@ -19,6 +21,7 @@ from airflow.models import Connection
 from airflow.providers.microsoft.mssql.hooks.mssql import MsSqlHook as MSSH
 from airflow.providers.postgres.hooks.postgres import PostgresHook as PH
 from airflow.providers.exasol.hooks.exasol import ExasolHook as EH
+from airflow.hooks.base_hook import BaseHook as BH
 
 bp = Blueprint(
     "ct_projects_administration",
@@ -80,6 +83,53 @@ class GetConnection:
         connections_list = [i.conn_id for i in connections if database_alias in i.conn_type]
         return connections_list
 
+    @staticmethod
+    def get_permissions_about_bd_user(database_name: str, database_type: str, connection_id: str,
+                                      permissions: list | str) -> True | False:
+        conn = BH.get_connection(connection_id)
+
+        username = conn.login
+        print(username)
+
+        sql_query_permissions = ''
+
+        if database_type == 'PostgreSQL':
+            sql_query_permissions = f"""
+                SELECT
+                    privilege_type
+                FROM information_schema.role_table_grants
+                WHERE {database_name} AND grantee = {username}
+            """
+
+        elif database_type == "MSSQL":
+            sql_query_permissions = f"""
+                USE {database_name};
+                SELECT permission_name FROM fn_my_permissions(NULL, 'DATABASE')
+                WHERE permission_name in ('SELECT', 'INSERT', 'UPDATE', 'DELETE');
+            """
+
+        with GetDatabase.get_hook_for_database(database_type=database_type, conn_id=connection_id).get_conn() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql_query_permissions)
+                rows = cursor.fetchall()
+                raw_permissions = [row[0] for row in rows]
+
+        print("!" * 30)
+        print(raw_permissions)
+        print("!" * 30)
+
+        if isinstance(permissions, list):
+            if all(elem in raw_permissions for elem in permissions):
+                return True
+            else:
+                return False
+
+        if isinstance(permissions, str):
+            if permissions in raw_permissions:
+                return True
+            else:
+                return False
+
 
 class GetDatabase:
     """Получение всех баз данных по connection"""
@@ -117,7 +167,7 @@ class GetDatabase:
     @staticmethod
     def get_hook_for_database(database_type: str, conn_id: str) -> str:
         """Получение хуков по типу базы данных и коннекшену"""
-        hook = ''
+        hook = 'WRONG!'
         if database_type == 'MSSQL':
             hook = MSSH(mssql_conn_id=conn_id)
         elif database_type == 'PostgreSQL':
@@ -295,6 +345,7 @@ class ProjectsView(AppBuilderBaseView):
                     """
 
         columns = [field.label.text for field in ProjectForm()][:11]
+        print(columns)
         with GetDatabase.get_connection_postgres().get_conn() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql_query)
@@ -304,7 +355,7 @@ class ProjectsView(AppBuilderBaseView):
                     raw_projects = [dict(zip(columns, row)) for row in rows]
 
                     projects = []
-                    print(raw_projects)
+
                     keys_to_clean = [
                         "BIView Database",
                         "Target Database Type",
@@ -322,8 +373,6 @@ class ProjectsView(AppBuilderBaseView):
                         dictionary['Is Source 1C?'] = 'Yes' if dictionary.get('Is Source 1C?') else 'No'
 
                         projects.append(dictionary)
-
-                    print(projects)
 
                 except Exception as e:
                     flash(str(e), category="error")
@@ -382,11 +431,16 @@ class ProjectsView(AppBuilderBaseView):
                                     '{form_add.transfer_dags_schedule.data}'
                                     );
                                 """
-            print(sql_insert_query)
+
             try:
+                if not GetConnection.get_permissions_about_bd_user(database_name=form_add.project_database.data,
+                                                                   database_type=form_add.source_database_type.data,
+                                                                   connection_id=form_add.source_connection_id.data,
+                                                                   permissions='INSERT'):
+                    raise ValueError("The user does not have permission to create tables!")
 
                 if form_add.source_database_type == " " or form_add.target_database_type == " ":
-                    raise ValueError("Некорректное значение для типа базы данных!")
+                    raise ValueError("Invalid value for database type!")
 
                 with GetDatabase.get_connection_postgres().get_conn() as conn:
                     with conn.cursor() as cursor:
@@ -406,12 +460,18 @@ class ProjectsView(AppBuilderBaseView):
 
                 if 'duplicate key' in str(e):
                     flash("This project database already exists! Choose another one.", category='warning')
+                    message = "This project database already exists! Choose another one."
+                elif 'not able to access' in str(e):
+                    flash('The user does not have permission to create tables!', category='warning')
+                    message = "The user does not have permission to create tables!"
                 else:
                     flash(str(e), category='warning')
+                    message = str(e)
 
                 return jsonify({
                     'success': False,
-                    'message': f'{str(e)}',
+                    'message': message,
+                    'redirect': url_for('ProjectsView.project_add_data')
                 })
         return self.render_template("add_projects.html", form=form)
 
@@ -460,9 +520,19 @@ class ProjectsView(AppBuilderBaseView):
                                 WHERE project_database = '{project_database}'
                                 ;"""
             print(sql_update_query)
+            print(form_update.project_database.data, form_update.source_database_type.data, form_update.source_connection_id.data)
             try:
+                if not GetConnection.get_permissions_about_bd_user(database_name=form_exist.project_database.data,
+                                                                   database_type=form_exist.source_database_type.data,
+                                                                   connection_id=form_exist.source_connection_id.data,
+                                                                   permissions=['INSERT', 'UPDATE']):
+
+                    raise ValueError("The user does not have permission to change tables!")
+
                 if form_update.source_database_type == " " or form_update.target_database_type == " ":
+
                     raise ValueError("Некорректное значение для типа базы данных!")
+
                 with GetDatabase.get_connection_postgres().get_conn() as conn:
                     with conn.cursor() as cursor:
                         cursor.execute(sql_update_query)
@@ -478,13 +548,20 @@ class ProjectsView(AppBuilderBaseView):
             except Exception as e:
 
                 if 'duplicate key' in str(e):
-                    flash("Данное имя проекта уже существует! Выберите другое.", category='warning')
+                    flash("This project database already exists! Choose another one.", category='warning')
+                    message = "This project database already exists! Choose another one."
+                elif 'not able to access' in str(e):
+                    flash('The user does not have permission to create tables!', category='warning')
+                    message = "The user does not have permission to create tables!"
                 else:
                     flash(str(e), category='warning')
+                    message = str(e)
 
                 return jsonify({
                     'success': False,
-                    'message': f'{str(e)}',
+                    'message': message,
+                    'redirect': url_for('ProjectsView.edit_project_data',
+                                        project_database=project_database)
                 })
 
         return self.render_template("edit_project.html", form=form_exist)
@@ -493,15 +570,28 @@ class ProjectsView(AppBuilderBaseView):
     @csrf.exempt
     def delete_ct_project(self, project_database):
         """Удаление CT Project"""
+        # source_database_type = request.args.get("database_type")
+        # source_connection_id = request.args.get("connection_id")
+
         sql_delete_query = """DELETE FROM airflow.atk_ct.ct_projects WHERE project_database = %s"""
+
         try:
+            # if not GetConnection.get_permissions_about_bd_user(database_name=project_database,
+            #                                                    database_type=source_database_type,
+            #                                                    connection_id=source_connection_id,
+            #                                                    permissions="DELETE"):
+            #     raise ValueError("The user does not have permission to delete tables!")
+
             with GetDatabase.get_connection_postgres().get_conn() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(sql_delete_query, (project_database,))
                 conn.commit()
+
             flash("Project successfully deleted!", category="info")
+
         except Exception as e:
             flash(str(e))
+
         return flask.redirect(url_for('ProjectsView.project_list'))
 
     @expose('/projects_to_load', methods=['GET'])
@@ -565,14 +655,46 @@ class ProjectsView(AppBuilderBaseView):
 
         databases = []
         get_connection = request.args.get('connection')
-        print(get_connection)
+        database_is_biview = request.args.get('database_is_biview')
 
         session = settings.Session()
         connections = session.query(Connection).all()
         connection = [conn for conn in connections if conn.conn_id == get_connection][0]
 
         if connection.conn_type == 'mssql':
-            databases = GetDatabase.get_all_database_mssql(connection.conn_id)
+
+            if database_is_biview == "True":
+                raw_databases = GetDatabase.get_all_database_mssql(connection.conn_id)
+
+                databases = []
+
+                for database in raw_databases:
+                    try:
+                        sql_query = f"""
+                            USE {database};
+                            SELECT name FROM SYS.TABLES
+                            WHERE name in ('ATK_TRef', 'ATK_TField', 'ATK_TEnum')
+                                AND SCHEMA_NAME(schema_id) = 'dbo'
+                                AND type = 'U';
+                        """
+
+                        with GetDatabase.get_hook_for_database('MSSQL', get_connection).get_conn() as conn:
+                            with conn.cursor() as cursor:
+                                cursor.execute(sql_query)
+                                rows = cursor.fetchall()
+                                all_tables_in_database = [row[0] for row in rows]
+
+                        if all(elem in all_tables_in_database for elem in ('ATK_TRef', 'ATK_TField', 'ATK_TEnum')):
+                            databases.append(database)
+
+                    except Exception as e:
+                        print(e)
+                        continue
+
+                return jsonify(databases)
+
+            else:
+                databases = GetDatabase.get_all_database_mssql(connection.conn_id)
 
         elif connection.conn_type == 'postgres':
             databases = GetDatabase.get_all_database_postgres(connection.conn_id)
@@ -611,20 +733,10 @@ class ProjectsView(AppBuilderBaseView):
                 cursor.execute(sql_select_query, (project_database,))
                 columns = [col[0] for col in cursor.description]
                 rows = cursor.fetchall()
-                print(rows)
+
                 projects_data = [dict(zip(columns, row)) for row in rows][0]
 
         return jsonify(projects_data)
-
-    # @expose("/api/fetch_airflow_connections")
-    # @provide_session
-    # def fetch_airflow_connections(self, session=None):
-    #     try:
-    #         connections = session.query(Connection).all()
-    #         connection_ids = [conn.conn_id for conn in connections]
-    #         return jsonify({"status": "success", "connections": connection_ids})
-    #     except Exception as e:
-    #         return jsonify({"status": "error", "message": str(e)})
 
     @expose("/api/fetch_data", methods=['GET'])
     def fetch_data(self):
@@ -634,9 +746,6 @@ class ProjectsView(AppBuilderBaseView):
         connection_id = request.args.get('connection')
         source_database_type = request.args.get('source_database_type')
 
-        print("*" * 20)
-        print("source_database_type: ", source_database_type)
-        print("*" * 20)
         try:
             sql_query = f"""
                            SELECT
@@ -659,12 +768,10 @@ class ProjectsView(AppBuilderBaseView):
                 "columns": columns,
                 "results": raw_projects
             }
-            print(response_data)
+
             return jsonify(response_data)
+
         except Exception as e:
-            print('!!!!!!!!!!!!!!!!')
-            print(e)
-            print('!!!!!!!!!!!!!!!!')
             if 'Invalid object name' in str(e):
                 return jsonify({'status': 'error', 'message': 'Tables is not defined'})
             else:
@@ -785,13 +892,14 @@ class ProjectsView(AppBuilderBaseView):
                                 @manage_tables = {manage_tables},
                                 @force_drop_tables = {force_drop_tables};
                                 """
-            print(sql_execute_query)
+
             with GetDatabase.get_hook_for_database(project_data['Source Database Type'],
                                                    project_data['Source Connection ID']).get_conn() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(sql_execute_query)
                 conn.commit()
-            # time.sleep(5)
+
+            # time.sleep(2)
 
             return jsonify({'status': 'success', 'script': sql_execute_query}), 200
 
@@ -806,6 +914,24 @@ class ProjectsView(AppBuilderBaseView):
             else:
                 message = f'Wrong field {wrong_field[0][1:]}!'
             return jsonify({'status': 'error', 'message': message}), 500
+
+    @expose('/api/dag_validate_db', methods=["GET"])
+    def use_ct_validate_dag(self):
+
+        project_database = request.args.get('project_database')
+
+        command = [
+            'airflow', 'dags', 'trigger', 'ct_validate',
+            '--conf',
+            f'{{"project_database": "{project_database}"}}'
+        ]
+
+        try:
+            subprocess.run(command, check=True)
+            return jsonify({"status": "DAG triggered successfully"}), 200
+
+        except subprocess.CalledProcessError as e:
+            return jsonify({"status": "Error", "error": str(e)}), 500
 
 
 v_appbuilder_view = ProjectsView()
