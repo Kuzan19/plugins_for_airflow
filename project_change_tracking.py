@@ -520,17 +520,16 @@ class ProjectsView(AppBuilderBaseView):
                                 WHERE project_database = '{project_database}'
                                 ;"""
             print(sql_update_query)
-            print(form_update.project_database.data, form_update.source_database_type.data, form_update.source_connection_id.data)
+            print(form_update.project_database.data, form_update.source_database_type.data,
+                  form_update.source_connection_id.data)
             try:
                 if not GetConnection.get_permissions_about_bd_user(database_name=form_exist.project_database.data,
                                                                    database_type=form_exist.source_database_type.data,
                                                                    connection_id=form_exist.source_connection_id.data,
                                                                    permissions=['INSERT', 'UPDATE']):
-
                     raise ValueError("The user does not have permission to change tables!")
 
                 if form_update.source_database_type == " " or form_update.target_database_type == " ":
-
                     raise ValueError("Некорректное значение для типа базы данных!")
 
                 with GetDatabase.get_connection_postgres().get_conn() as conn:
@@ -570,9 +569,10 @@ class ProjectsView(AppBuilderBaseView):
     @csrf.exempt
     def delete_ct_project(self, project_database):
         """Удаление CT Project"""
-        # source_database_type = request.args.get("database_type")
-        # source_connection_id = request.args.get("connection_id")
-
+        source_database_type = request.args.get("database_type")
+        source_connection_id = request.args.get("connection_id")
+        print(source_database_type)
+        print(source_connection_id)
         sql_delete_query = """DELETE FROM airflow.atk_ct.ct_projects WHERE project_database = %s"""
 
         try:
@@ -588,6 +588,36 @@ class ProjectsView(AppBuilderBaseView):
                 conn.commit()
 
             flash("Project successfully deleted!", category="info")
+
+            try:
+                sql_execute_query = f"""
+                EXECUTE [ct__config].[dbo].[ct__delete_project_from_metadata]
+                    @ct_db_name = {project_database},
+                    @ct_schema_name = 'dbo';
+                                    """
+
+                with GetDatabase.get_hook_for_database(source_database_type, source_connection_id).get_conn() as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute(sql_execute_query)
+                    conn.commit()
+
+                # time.sleep(2)
+
+            except Exception as e:
+
+                pattern = r'"([^"]*?@[\w_]+)"'
+                wrong_field = re.findall(pattern, str(e))
+
+                if not wrong_field:
+                    if 'error message 20018' in str(e):
+                        message = "Invalid database selected for table generation!"
+                        flash(message, category="warning")
+                    else:
+                        message = str(e)
+                else:
+                    message = f'Wrong field {wrong_field[0][1:]}!'
+
+                flash(message, category="warning")
 
         except Exception as e:
             flash(str(e))
@@ -751,8 +781,8 @@ class ProjectsView(AppBuilderBaseView):
                            SELECT
                                table_alias,
                                load
-                           FROM {project_database}.dbo.ct__tables
-                           WHERE exists_in_source = 1;
+                           FROM ct__config.dbo.ct__tables
+                           WHERE exists_in_source = 1 AND ct_db = {project_database};
                         """
 
             with GetDatabase.get_hook_for_database(source_database_type, connection_id).get_conn() as conn:
@@ -861,7 +891,9 @@ class ProjectsView(AppBuilderBaseView):
 
         manage_tables = 0
         force_drop_tables = 0
+        fld_1c_name_kind = 1
 
+        source_db_type = project_data["Source Database Type"]
         source_db_name = project_data["Source Database"]
         ct_db_name = project_data["Project Database"]  # will change!
 
@@ -878,9 +910,10 @@ class ProjectsView(AppBuilderBaseView):
             return jsonify({'status': 'error', 'message': message}), 500
         try:
 
-            sql_execute_query = f""" EXECUTE [CT_TEST].[dbo].[ct_validatedb]
+            sql_execute_query = f""" EXECUTE [ct__config].[dbo].[ct__validatedb]
                                 @source_db_name = {replace_response_data(source_db_name)},
                                 @source_schema_name = 'dbo',
+                                @source_db_type = {replace_response_data(source_db_type)},
                                 @source_is_1c = {source_is_1c},
                                 @biview_db_name = {replace_response_data(biview_db_name)},
                                 @biview_schema_name = {replace_response_data(biview_schema_name)},
@@ -890,7 +923,8 @@ class ProjectsView(AppBuilderBaseView):
                                 @target_db_name = 'DB1',
                                 @target_schema_name = 'STG_CDC',
                                 @manage_tables = {manage_tables},
-                                @force_drop_tables = {force_drop_tables};
+                                @force_drop_tables = {force_drop_tables},
+                                @fld_1c_name_kind = {fld_1c_name_kind};
                                 """
 
             with GetDatabase.get_hook_for_database(project_data['Source Database Type'],
@@ -921,7 +955,7 @@ class ProjectsView(AppBuilderBaseView):
         project_database = request.args.get('project_database')
 
         command = [
-            'airflow', 'dags', 'trigger', 'ct_validate',
+            'airflow', 'dags', 'trigger', 'validate_ct_tables',
             '--conf',
             f'{{"project_database": "{project_database}"}}'
         ]
